@@ -166,7 +166,8 @@ bool EQ_LiteAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* EQ_LiteAudioProcessor::createEditor()
 {
-    return new EQ_LiteAudioProcessorEditor (*this);
+    //return new EQ_LiteAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -182,6 +183,64 @@ void EQ_LiteAudioProcessor::setStateInformation (const void* data, int sizeInByt
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
 }
+    // Adding audio processor parameters here. Low cut and high cut with steepness choice, 3 bands with Q and dB parameters    ~A
+juce::AudioProcessorValueTreeState::ParameterLayout
+EQ_LiteAudioProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("LowCut Freq", "LowCut Freq",
+        juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f), 20.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("HiCut Freq", "HiCut Freq",
+        juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f), 20000.f));
+
+
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band1 Freq", "Band1 Freq",
+        juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f), 400.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band1 Gain", "Band1 Gain",
+        juce::NormalisableRange<float>(-24.f, 24.f, 0.1f, 1.f), 0.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band1 Quality", "Band1 Quality",
+        juce::NormalisableRange<float>(0.1f, 10.f, 0.05f, 1.f), 1.f));
+
+
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band2 Freq", "Band2 Freq",
+        juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f), 1000.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band2 Gain", "Band2 Gain",
+        juce::NormalisableRange<float>(-24.f, 24.f, 0.1f, 1.f), 0.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band2 Quality", "Band2 Quality",
+        juce::NormalisableRange<float>(0.1f, 10.f, 0.05f, 1.f), 1.f));
+
+
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band3 Freq", "Band3 Freq",
+        juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f), 5000.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band3 Gain", "Band3 Gain",
+        juce::NormalisableRange<float>(-24.f, 24.f, 0.1f, 1.f), 0.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Band3 Quality", "Band3 Quality",
+        juce::NormalisableRange<float>(0.1f, 10.f, 0.05f, 1.f), 1.f));
+
+
+    juce::StringArray slopeChoices{"12 dB/Oct", "24 dB/Oct", "36 dB/Oct", "48 dB/Oct"};
+    
+    layout.add(std::make_unique<juce::AudioParameterChoice>("LowCut Slope", "LowCut Slope",
+        slopeChoices, 0));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>("HiCut Slope", "HiCut Slope",
+        slopeChoices, 0));
+
+    return layout;
+}
+
+
 
 //==============================================================================
 // This creates new instances of the plugin..
