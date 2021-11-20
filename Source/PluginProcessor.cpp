@@ -95,6 +95,18 @@ void EQ_LiteAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+
+    // Creating a specs object that will be passed to each element of the signal chain and then setting its values  ~A
+
+    juce::dsp::ProcessSpec specs;
+    specs.maximumBlockSize = samplesPerBlock;
+    specs.numChannels = 1;
+    specs.sampleRate = sampleRate;
+    
+    leftChain.prepare(specs);
+    rightChain.prepare(specs);
+
+
 }
 
 void EQ_LiteAudioProcessor::releaseResources()
@@ -144,18 +156,17 @@ void EQ_LiteAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
+    // Creating context to be passed to the chain       ~A
+    juce::dsp::AudioBlock<float> block(buffer);
 
-        // ..do something to the data...
-    }
+    auto leftBlock = block.getSingleChannelBlock(0);
+    auto rightBlock = block.getSingleChannelBlock(1);
+
+    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
+    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
+
+    leftChain.process(leftContext);
+    rightChain.process(rightContext);
 }
 
 //==============================================================================

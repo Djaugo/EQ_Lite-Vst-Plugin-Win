@@ -60,6 +60,13 @@ public:
     juce::AudioProcessorValueTreeState apvts {*this, nullptr, "Parameters", createParameterLayout()};
 
 private:
+    // Creating aliases for convoluted namespaces   ~A
+    using Filter = juce::dsp::IIR::Filter<float>;
+    using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;                // 4 filters for 4 db/Oct settings
+    using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, Filter, Filter, CutFilter>;  // whole mono chain
+    MonoChain leftChain, rightChain;                                                             // 2 mono chains for stereo
+
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ_LiteAudioProcessor)
 };
