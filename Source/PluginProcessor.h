@@ -99,7 +99,65 @@ private:
         HighCut
     };
     
-    
+
+
+    // Cleaning up the code via helper functions   ~A
+    void updateBand1Filter(const chainSettings& chainSettings);
+    void updateBand2Filter(const chainSettings& chainSettings);
+    void updateBand3Filter(const chainSettings& chainSettings);
+
+    using Coefficients = Filter::CoefficientsPtr;
+    static void updateCoefficients(Coefficients& old, const Coefficients& replacement);
+
+
+    template<int Index, typename ChainType, typename CoefficientType>
+    void update(ChainType& chain, const CoefficientType& coefficients)
+    {
+        updateCoefficients(chain.get<Index>().coefficients, coefficients[Index]);
+        chain.setBypassed<Index>(false);
+    }
+
+    template<typename ChainType, typename CoefficientType>
+    void updateCutFilter(ChainType& cutType,
+                         const CoefficientType& cutCoefficients,              
+                         const int& CutSlope)
+    {
+        cutType.setBypassed<0>(true);     //  Bypassing elements of the chain that aren't the low cut filter  ~A
+        cutType.setBypassed<1>(true);
+        cutType.setBypassed<2>(true);
+        cutType.setBypassed<3>(true);
+
+        // A trick to avoid repeated code - using reverse order instead of breaks and a template function declared above       ~A
+        switch (CutSlope)
+        {
+            case Slope_48:
+            {
+                update<3>(cutType, cutCoefficients);
+            }
+            
+            case Slope_36:
+            {
+                update<2>(cutType, cutCoefficients);
+            }
+
+            case Slope_24:
+            {
+             update<1>(cutType, cutCoefficients);
+            }
+
+            case Slope_12:
+            {
+                update<0>(cutType, cutCoefficients);
+            }
+        }
+    }
+
+
+    // Refactoring the code even more   ~A
+    void updateLowCutFilters(const chainSettings& chainSettings);
+    void updateHighCutFilters(const chainSettings& chainSettings);
+    void updateFilters();
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ_LiteAudioProcessor)
 };
