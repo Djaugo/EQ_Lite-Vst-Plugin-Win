@@ -22,7 +22,7 @@ enum Slope
 
 
 // Adding data structure holding all the EQ parameters      ~A
-struct chainSettings
+struct ChainSettings
 {
     float band1Freq{ 0 }, band1GainDB{ 0 }, band1Quality{1.f};
     float band2Freq{ 0 }, band2GainDB{ 0 }, band2Quality{ 1.f };
@@ -31,7 +31,94 @@ struct chainSettings
     int lowCutSlope{ Slope::Slope_12 }, highCutSlope{ Slope::Slope_12 };
 };
 
-chainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
+
+//          Moved those out of private to pass them to plugin editor to draw the spectrum    ~A
+
+ // Creating aliases for convoluted namespaces   ~A
+using Filter = juce::dsp::IIR::Filter<float>;
+using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;                // 4 filters for 4 db/Oct settings  ~A
+using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, Filter, Filter, CutFilter>;  // whole mono chain
+
+// Declaring enum for clarity of filter names   ~A
+enum ChainPositions
+{
+    LowCut,
+    Band1,
+    Band2,
+    Band3,
+    HighCut
+};
+
+using Coefficients = Filter::CoefficientsPtr;
+void updateCoefficients(Coefficients& old, const Coefficients& replacement);
+
+
+Coefficients makeBand1Filter(const ChainSettings& chainSettings, double sampleRate);
+Coefficients makeBand2Filter(const ChainSettings& chainSettings, double sampleRate);
+Coefficients makeBand3Filter(const ChainSettings& chainSettings, double sampleRate);
+
+// Moved all these functions here to make them global   ~A
+
+template<int Index, typename ChainType, typename CoefficientType>
+void update(ChainType& chain, const CoefficientType& coefficients)
+{
+    updateCoefficients(chain.get<Index>().coefficients, coefficients[Index]);
+    chain.setBypassed<Index>(false);
+}
+
+template<typename ChainType, typename CoefficientType>
+void updateCutFilter(ChainType& cutType,
+    const CoefficientType& cutCoefficients,
+    const int& CutSlope)
+{
+    cutType.setBypassed<0>(true);     //  Initially bypassing all the slope options  ~A
+    cutType.setBypassed<1>(true);
+    cutType.setBypassed<2>(true);
+    cutType.setBypassed<3>(true);
+
+    // A trick to avoid repeated code - using reverse order instead of breaks and a template function declared above       ~A
+    switch (CutSlope)
+    {
+    case Slope_48:
+    {
+        update<3>(cutType, cutCoefficients);
+    }
+
+    case Slope_36:
+    {
+        update<2>(cutType, cutCoefficients);
+    }
+
+    case Slope_24:
+    {
+        update<1>(cutType, cutCoefficients);
+    }
+
+    case Slope_12:
+    {
+        update<0>(cutType, cutCoefficients);
+    }
+    }
+}
+
+
+
+// Declaring this function inline not to confuse the compiler   ~A
+inline auto makeLowCutFilter(const ChainSettings& chainSettings, double sampleRate)
+{
+    return juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
+                                                                                       sampleRate,
+                                                                                       2 * (chainSettings.lowCutSlope + 1));
+}
+
+
+inline auto makeHighCutFilter(const ChainSettings& chainSettings, double sampleRate)
+{
+    return juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.highCutFreq,
+                                                                                     sampleRate,
+                                                                                     2 * (chainSettings.highCutSlope + 1));
+}
 
 //==============================================================================
 /**
@@ -83,79 +170,27 @@ public:
     juce::AudioProcessorValueTreeState apvts {*this, nullptr, "Parameters", createParameterLayout()};
 
 private:
-    // Creating aliases for convoluted namespaces   ~A
-    using Filter = juce::dsp::IIR::Filter<float>;
-    using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;                // 4 filters for 4 db/Oct settings
-    using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, Filter, Filter, CutFilter>;  // whole mono chain
-    MonoChain leftChain, rightChain;                                                             // 2 mono chains for stereo
 
-    // Declaring enum for clarity of filter names   ~A
-    enum ChainPositions
-    {
-        LowCut,
-        Band1,
-        Band2,
-        Band3,
-        HighCut
-    };
-    
-
+    MonoChain leftChain, rightChain;                                                             // 2 mono chains for stereo    ~A
 
     // Cleaning up the code via helper functions   ~A
-    void updateBand1Filter(const chainSettings& chainSettings);
-    void updateBand2Filter(const chainSettings& chainSettings);
-    void updateBand3Filter(const chainSettings& chainSettings);
-
-    using Coefficients = Filter::CoefficientsPtr;
-    static void updateCoefficients(Coefficients& old, const Coefficients& replacement);
+    void updateBand1Filter(const ChainSettings& chainSettings);
+    void updateBand2Filter(const ChainSettings& chainSettings);
+    void updateBand3Filter(const ChainSettings& chainSettings);
 
 
-    template<int Index, typename ChainType, typename CoefficientType>
-    void update(ChainType& chain, const CoefficientType& coefficients)
-    {
-        updateCoefficients(chain.get<Index>().coefficients, coefficients[Index]);
-        chain.setBypassed<Index>(false);
-    }
+    // Moved the commented out lines to global scope because they're needed for
+    // drawing the response curve   ~A
+    //using Coefficients = Filter::CoefficientsPtr;
+    //static void updateCoefficients(Coefficients& old, const Coefficients& replacement);
 
-    template<typename ChainType, typename CoefficientType>
-    void updateCutFilter(ChainType& cutType,
-                         const CoefficientType& cutCoefficients,              
-                         const int& CutSlope)
-    {
-        cutType.setBypassed<0>(true);     //  Bypassing elements of the chain that aren't the low cut filter  ~A
-        cutType.setBypassed<1>(true);
-        cutType.setBypassed<2>(true);
-        cutType.setBypassed<3>(true);
 
-        // A trick to avoid repeated code - using reverse order instead of breaks and a template function declared above       ~A
-        switch (CutSlope)
-        {
-            case Slope_48:
-            {
-                update<3>(cutType, cutCoefficients);
-            }
-            
-            case Slope_36:
-            {
-                update<2>(cutType, cutCoefficients);
-            }
-
-            case Slope_24:
-            {
-             update<1>(cutType, cutCoefficients);
-            }
-
-            case Slope_12:
-            {
-                update<0>(cutType, cutCoefficients);
-            }
-        }
-    }
+ 
 
 
     // Refactoring the code even more   ~A
-    void updateLowCutFilters(const chainSettings& chainSettings);
-    void updateHighCutFilters(const chainSettings& chainSettings);
+    void updateLowCutFilters(const ChainSettings& chainSettings);
+    void updateHighCutFilters(const ChainSettings& chainSettings);
     void updateFilters();
 
     //==============================================================================

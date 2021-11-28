@@ -218,9 +218,9 @@ void EQ_LiteAudioProcessor::setStateInformation (const void* data, int sizeInByt
 }
 
 
-chainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
 {
-    chainSettings chSettings;
+    ChainSettings chSettings;
 
     chSettings.lowCutFreq = apvts.getRawParameterValue("LowCut Freq")->load();
     chSettings.highCutFreq = apvts.getRawParameterValue("HiCut Freq")->load();
@@ -239,75 +239,90 @@ chainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     return chSettings;
 }
 
-// Code cleaning helper functions declarations      ~A
-void EQ_LiteAudioProcessor::updateBand1Filter(const chainSettings& chainSettings)
+
+Coefficients makeBand1Filter(const ChainSettings& chainSettings, double sampleRate)
 {
-    auto band1Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
+    return juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
+                                                               chainSettings.band1Freq,
+                                                               chainSettings.band1Quality,
+                                                               juce::Decibels::decibelsToGain(chainSettings.band1GainDB));
+}
+
+Coefficients makeBand2Filter(const ChainSettings& chainSettings, double sampleRate)
+{
+    return juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
+                                                               chainSettings.band2Freq,
+                                                               chainSettings.band2Quality,
+                                                               juce::Decibels::decibelsToGain(chainSettings.band2GainDB));
+}
+
+Coefficients makeBand3Filter(const ChainSettings& chainSettings, double sampleRate)
+{
+    return juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
+                                                               chainSettings.band3Freq,
+                                                               chainSettings.band3Quality,
+                                                               juce::Decibels::decibelsToGain(chainSettings.band3GainDB));
+}
+
+// Code cleaning helper functions declarations      ~A
+void EQ_LiteAudioProcessor::updateBand1Filter(const ChainSettings& chainSettings)
+{
+    /*auto band1Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
                                                                                 chainSettings.band1Freq,
                                                                                 chainSettings.band1Quality,
-                                                                                juce::Decibels::decibelsToGain(chainSettings.band1GainDB));
-  
+                                                                                juce::Decibels::decibelsToGain(chainSettings.band1GainDB));*/
+    auto band1Coefficients = makeBand1Filter(chainSettings, getSampleRate());
     updateCoefficients(leftChain.get<ChainPositions::Band1>().coefficients, band1Coefficients);
     updateCoefficients(rightChain.get<ChainPositions::Band1>().coefficients, band1Coefficients);
 }
 
-void EQ_LiteAudioProcessor::updateBand2Filter(const chainSettings& chainSettings)
+void EQ_LiteAudioProcessor::updateBand2Filter(const ChainSettings& chainSettings)
 {
-    auto band2Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
+   /* auto band2Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
                                                                                  chainSettings.band2Freq,
                                                                                  chainSettings.band2Quality,
-                                                                                 juce::Decibels::decibelsToGain(chainSettings.band2GainDB));
-
+                                                                                 juce::Decibels::decibelsToGain(chainSettings.band2GainDB));*/
+    auto band2Coefficients = makeBand2Filter(chainSettings, getSampleRate());
     updateCoefficients(leftChain.get<ChainPositions::Band2>().coefficients, band2Coefficients);
     updateCoefficients(rightChain.get<ChainPositions::Band2>().coefficients, band2Coefficients);
 }
 
-void EQ_LiteAudioProcessor::updateBand3Filter(const chainSettings& chainSettings)
+void EQ_LiteAudioProcessor::updateBand3Filter(const ChainSettings& chainSettings)
 {
-    auto band3Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
+   /* auto band3Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
                                                                                  chainSettings.band3Freq,
                                                                                  chainSettings.band3Quality,
-                                                                                 juce::Decibels::decibelsToGain(chainSettings.band3GainDB));
-    
+                                                                                 juce::Decibels::decibelsToGain(chainSettings.band3GainDB));*/
+    auto band3Coefficients = makeBand3Filter(chainSettings, getSampleRate());
     updateCoefficients(leftChain.get<ChainPositions::Band3>().coefficients, band3Coefficients);
     updateCoefficients(rightChain.get<ChainPositions::Band3>().coefficients, band3Coefficients);
 }
 
-void EQ_LiteAudioProcessor::updateCoefficients(Coefficients& old, const Coefficients& replacement)
+void updateCoefficients(Coefficients& old, const Coefficients& replacement)
 {
     *old = *replacement;
 }
 
-void EQ_LiteAudioProcessor::updateLowCutFilters(const chainSettings& chainSettings)
+void EQ_LiteAudioProcessor::updateLowCutFilters(const ChainSettings& chainSettings)
 {
     // Low cut filter parameters
 
-    auto LcutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
-                                                                                                        getSampleRate(),
-                                                                                                        2 * (chainSettings.lowCutSlope + 1));
-
-    
+    auto LcutCoefficients = makeLowCutFilter(chainSettings, getSampleRate());
     auto& leftLowCut = leftChain.get<ChainPositions::LowCut>();
     auto& rightLowCut = rightChain.get<ChainPositions::LowCut>();
     updateCutFilter(leftLowCut, LcutCoefficients, chainSettings.lowCutSlope);
     updateCutFilter(rightLowCut, LcutCoefficients, chainSettings.lowCutSlope);
 }
 
-void EQ_LiteAudioProcessor::updateHighCutFilters(const chainSettings& chainSettings)
+void EQ_LiteAudioProcessor::updateHighCutFilters(const ChainSettings& chainSettings)
 {
     // High cut (low pass)
-    auto HcutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.highCutFreq,
-                                                                                                       getSampleRate(),
-                                                                                                       2 * (chainSettings.highCutSlope + 1));
-
+    auto HcutCoefficients = makeHighCutFilter(chainSettings, getSampleRate());
     // Repeating the process for both channels      ~A
     auto& leftHighCut = leftChain.get<ChainPositions::HighCut>();
     auto& rightHighCut = rightChain.get<ChainPositions::HighCut>();
     updateCutFilter(leftHighCut, HcutCoefficients, chainSettings.highCutSlope);
     updateCutFilter(rightHighCut, HcutCoefficients, chainSettings.highCutSlope);
-    
-    
-    
 }
 
 void EQ_LiteAudioProcessor::updateFilters()
