@@ -9,6 +9,123 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+void LookAndFeel::drawRotarySlider(juce::Graphics& g,
+    int x, int y, int width, int height,
+    float sliderPosProportional,
+    float rotaryStartAngle,
+    float rotaryEndAngle,
+    juce::Slider& slider)
+{
+    using namespace juce;
+
+    // Drawing the knob circles     ~A
+    auto bounds = Rectangle<float>(x, y, width, height);
+
+    g.setColour(Colour(38u, 38u, 38u));
+    g.fillEllipse(bounds);
+
+    g.setColour(Colour(220u, 220u, 220u));
+    g.drawEllipse(bounds, 5.f);
+
+    // Drawing the knob rectangle   ~A
+    auto center = bounds.getCentre();
+    Path p1;
+    Path p2;
+    
+    Rectangle<float> r1;
+    r1.setLeft(center.getX() - 6);
+    r1.setRight(center.getX() + 6);
+    r1.setTop(bounds.getY());
+    r1.setBottom(center.getY()-25);
+
+    
+    Rectangle<float> r2;
+    r2.setLeft(center.getX() - 4);
+    r2.setRight(center.getX() + 4);
+    r2.setTop(bounds.getY() +2);
+    r2.setBottom(center.getY() - 27);
+
+    p1.addRectangle(r1);
+    p2.addRectangle(r2);
+    jassert(rotaryStartAngle < rotaryEndAngle);
+    
+    auto sliderAngleRad = jmap(sliderPosProportional, 0.f, 1.f, rotaryStartAngle, rotaryEndAngle);
+    p1.applyTransform(AffineTransform().rotated(sliderAngleRad, center.getX(), center.getY()));
+    p2.applyTransform(AffineTransform().rotated(sliderAngleRad, center.getX(), center.getY()));
+    
+    g.setColour(Colour(0u, 0u, 0u));
+    g.fillPath(p1);
+    g.setColour(Colour(250u, 250u, 250u));
+    g.fillPath(p2);
+    
+
+}
+
+
+// Implementing paint function to draw the custom knobs     ~A
+void MyEQKnob1::paint(juce::Graphics& g)
+{
+    using namespace juce;
+    
+
+    // Making the knobs have starting value at 7 o'clock and ending value at 5 o'clock  ~A
+    auto startAngle = degreesToRadians(180.f + 45.f);
+    auto endAngle = degreesToRadians(180.f - 45.f) + MathConstants<float>::twoPi;
+
+    auto range = getRange();
+
+    auto sliderBounds = getSliderBounds();
+
+   /* g.setColour(Colours::red);
+    g.drawRect(getLocalBounds());
+    g.setColour(Colours::orangered);
+    g.drawRect(sliderBounds);*/
+
+    getLookAndFeel().drawRotarySlider(g,
+                                      sliderBounds.getX(),
+                                      sliderBounds.getY(),
+                                      sliderBounds.getWidth(),
+                                      sliderBounds.getHeight(),
+                                      jmap(getValue(), range.getStart(), range.getEnd(), 0.0, 1.0),
+                                      startAngle,
+                                      endAngle,
+                                      *this);
+
+    // Drawing the min max values for each knob     ~A
+    auto knobCenter = sliderBounds.toFloat().getCentre();
+    auto radius = sliderBounds.getWidth() * 0.5f;
+    g.setColour(Colour(220u, 220u, 220u));
+    g.setFont(getTextHeight());
+    for (int i = 0; i < labelsArray.size(); i++)
+    {
+        auto position = labelsArray[i].position;
+        jassert(0.f <= position);
+        jassert(position <= 1.f);
+        auto angle = jmap(position, 0.f, 1.f, startAngle, endAngle);
+
+        auto c = knobCenter.getPointOnCircumference(radius + getTextHeight() * 0.5f + 1, angle);
+        Rectangle<float> r;
+        juce::String str = labelsArray[i].label;
+        r.setSize(g.getCurrentFont().getStringWidth(str), getTextHeight());
+        r.setCentre(c);
+        r.setY(r.getY() + getTextHeight());
+
+        g.drawFittedText(str, r.toNearestInt(), juce::Justification::verticallyCentred, 1);
+    }
+
+   
+}
+
+juce::Rectangle<int> MyEQKnob1::getSliderBounds() const
+{
+    auto bounds = getLocalBounds();
+    
+    juce::Rectangle<int> r;
+    r.setSize(90, 90);
+    r.setCentre(bounds.getCentreX(), bounds.getCentreY());
+    return r;
+}
+
 
 ResponseCurveWindow::ResponseCurveWindow(EQ_LiteAudioProcessor& p) : audioProcessor(p)
 {
@@ -18,6 +135,8 @@ ResponseCurveWindow::ResponseCurveWindow(EQ_LiteAudioProcessor& p) : audioProces
     {
         parameter->addListener(this);
     }
+
+    updateChain();
 
     startTimerHz(60);
 }
@@ -42,28 +161,33 @@ void ResponseCurveWindow::timerCallback()
     if (parametersChanged.compareAndSetBool(false, true))
     {
         // Updating the monochain   ~A
-        auto chainSettings = getChainSettings(audioProcessor.apvts);
-        auto band1Coefficients = makeBand1Filter(chainSettings, audioProcessor.getSampleRate());
-        auto band2Coefficients = makeBand2Filter(chainSettings, audioProcessor.getSampleRate());
-        auto band3Coefficients = makeBand3Filter(chainSettings, audioProcessor.getSampleRate());
-        auto lowCutCoefficients = makeLowCutFilter(chainSettings, audioProcessor.getSampleRate());
-        auto highCutCoefficeints = makeHighCutFilter(chainSettings, audioProcessor.getSampleRate());
-
-        updateCoefficients(monoChain.get<ChainPositions::Band1>().coefficients, band1Coefficients);
-        updateCoefficients(monoChain.get<ChainPositions::Band2>().coefficients, band2Coefficients);
-        updateCoefficients(monoChain.get<ChainPositions::Band3>().coefficients, band3Coefficients);
-        updateCutFilter(monoChain.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
-        updateCutFilter(monoChain.get<ChainPositions::HighCut>(), highCutCoefficeints, chainSettings.highCutSlope);
+        updateChain();
         // Signaling a repaint  ~A
         repaint();
     }
+}
+
+void ResponseCurveWindow::updateChain()
+{
+    auto chainSettings = getChainSettings(audioProcessor.apvts);
+    auto band1Coefficients = makeBand1Filter(chainSettings, audioProcessor.getSampleRate());
+    auto band2Coefficients = makeBand2Filter(chainSettings, audioProcessor.getSampleRate());
+    auto band3Coefficients = makeBand3Filter(chainSettings, audioProcessor.getSampleRate());
+    auto lowCutCoefficients = makeLowCutFilter(chainSettings, audioProcessor.getSampleRate());
+    auto highCutCoefficeints = makeHighCutFilter(chainSettings, audioProcessor.getSampleRate());
+
+    updateCoefficients(monoChain.get<ChainPositions::Band1>().coefficients, band1Coefficients);
+    updateCoefficients(monoChain.get<ChainPositions::Band2>().coefficients, band2Coefficients);
+    updateCoefficients(monoChain.get<ChainPositions::Band3>().coefficients, band3Coefficients);
+    updateCutFilter(monoChain.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
+    updateCutFilter(monoChain.get<ChainPositions::HighCut>(), highCutCoefficeints, chainSettings.highCutSlope);
 }
 
 void ResponseCurveWindow::paint(juce::Graphics& g)
 {
     using namespace juce;
     // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll(Colours::black);
+    g.fillAll(Colour(0u, 0u, 0u));
    
     auto graphicResponseArea = getLocalBounds();
 
@@ -120,7 +244,7 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
         magnitudes[i] = Decibels::gainToDecibels(magnitude);
     }
 
-    // !!!!!!!!!UZYJ TEGO DO NARYSOWANIA LADNYCH OBWODEK ITP!!!!!!!!!!!!!
+   
     Path responseCurve;
     const double outputMin = graphicResponseArea.getBottom();
     const double outputMax = graphicResponseArea.getY();
@@ -147,16 +271,27 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
     g.setColour(Colours::azure);
     g.strokePath(responseCurve, PathStrokeType(2.f));
 
-    // Drawing the rest of the GUI details  ~A
-    //g.setColour(Colours::beige);
-    //juce::Rectangle<float> lcOutline(200.f, 200.f, 200.f, 200.f);
-    //g.drawRoundedRectangle(lcOutline, 50.f, 5.f);
+    
 }
 
 
 //==============================================================================
 EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p),
+    band1FreqKnob(*audioProcessor.apvts.getParameter("Band1 Freq"), " Hz"),
+    band2FreqKnob(*audioProcessor.apvts.getParameter("Band2 Freq"), " Hz"),
+    band3FreqKnob(*audioProcessor.apvts.getParameter("Band3 Freq"), " Hz"),
+    band1GainKnob(*audioProcessor.apvts.getParameter("Band1 Gain"), " dB"),
+    band2GainKnob(*audioProcessor.apvts.getParameter("Band2 Gain"), " dB"),
+    band3GainKnob(*audioProcessor.apvts.getParameter("Band3 Gain"), " dB"),
+    band1QKnob(*audioProcessor.apvts.getParameter("Band1 Quality"), ""),
+    band2QKnob(*audioProcessor.apvts.getParameter("Band2 Quality"), ""),
+    band3QKnob(*audioProcessor.apvts.getParameter("Band3 Quality"), ""),
+    lowCutFreqKnob(*audioProcessor.apvts.getParameter("LowCut Freq"), " Hz"),
+    lowCutSlopeKnob(*audioProcessor.apvts.getParameter("LowCut Slope"), " dB/Oct"),
+    highCutFreqKnob(*audioProcessor.apvts.getParameter("HiCut Freq"), " Hz"),
+    highCutSlopeKnob(*audioProcessor.apvts.getParameter("HiCut Slope"), " dB/Oct"),
+
     responseCurveWindow(audioProcessor),
     band1FreqKnobAttachment(audioProcessor.apvts, "Band1 Freq", band1FreqKnob),
     band2FreqKnobAttachment(audioProcessor.apvts, "Band2 Freq", band2FreqKnob),
@@ -177,13 +312,43 @@ EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& 
 {
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
+
+    // Initializing knobs' labels to proper values  ~A
+    band1FreqKnob.labelsArray.add({ 0.f, "20 Hz" });
+    band1FreqKnob.labelsArray.add({ 1.f, "20 kHz" });
+    band2FreqKnob.labelsArray.add({ 0.f, "20 Hz" });
+    band2FreqKnob.labelsArray.add({ 1.f, "20 kHz" });
+    band3FreqKnob.labelsArray.add({ 0.f, "20 Hz" });
+    band3FreqKnob.labelsArray.add({ 1.f, "20 kHz" });
+    band1GainKnob.labelsArray.add({ 0.f, "-24 dB" });
+    band1GainKnob.labelsArray.add({ 1.f, "24 dB" });
+    band2GainKnob.labelsArray.add({ 0.f, "-24 dB" });
+    band2GainKnob.labelsArray.add({ 1.f, "24 dB" });
+    band3GainKnob.labelsArray.add({ 0.f, "-24 dB" });
+    band3GainKnob.labelsArray.add({ 1.f, "24 dB" });
+    band1QKnob.labelsArray.add({ 0.f, "0.1" });
+    band1QKnob.labelsArray.add({ 1.f, "10" });
+    band2QKnob.labelsArray.add({ 0.f, "0.1" });
+    band2QKnob.labelsArray.add({ 1.f, "10" });
+    band3QKnob.labelsArray.add({ 0.f, "0.1" });
+    band3QKnob.labelsArray.add({ 1.f, "10" });
+    lowCutFreqKnob.labelsArray.add({ 0.f, "20 Hz" });
+    lowCutFreqKnob.labelsArray.add({ 1.f, "20 kHz" });
+    lowCutSlopeKnob.labelsArray.add({ 0.f, "12 dB/Oct" });
+    lowCutSlopeKnob.labelsArray.add({ 1.f, "48 dB/Oct" });
+    highCutFreqKnob.labelsArray.add({ 0.f, "20 Hz" });
+    highCutFreqKnob.labelsArray.add({ 1.f, "20 kHz" });
+    highCutSlopeKnob.labelsArray.add({ 0.f, "12 dB/Oct" });
+    highCutSlopeKnob.labelsArray.add({ 1.f, "48 dB/Oct" });
+
+
     for (auto* component : getComponents())
     {
         addAndMakeVisible(component);
     }
 
 
-    setSize (800, 500);
+    setSize (800, 600);
 }
 
 EQ_LiteAudioProcessorEditor::~EQ_LiteAudioProcessorEditor()
@@ -196,9 +361,17 @@ EQ_LiteAudioProcessorEditor::~EQ_LiteAudioProcessorEditor()
 void EQ_LiteAudioProcessorEditor::paint (juce::Graphics& g)
 {
     using namespace juce;
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll (Colours::black);
-   
+    //g.fillAll(Colours::black);
+    //g.drawImageAt
+    // Writing the band names
+    auto textBounds = getLocalBounds();
+    juce::Rectangle<int> textR;
+    textR.setSize(690, 300);
+    textR.setCentre(textBounds.getCentreX(), 195);
+    g.setColour(Colour(220u, 220u, 220u));
+    g.setFont(20);
+    g.drawFittedText("Low cut                            Peak band 1                         Peak band 2                        Peak band 3                          High cut",
+                      textR, juce::Justification::Flags::left, 1, 0.5f);
 
     //``````````````// Drawing the rest of the GUI details  ~A
     //g.setColour(Colours::beige);
@@ -218,7 +391,7 @@ void EQ_LiteAudioProcessorEditor::resized()
 
     // Setting positions of my custom components    ~A
     auto bounds = getLocalBounds();
-    auto graphicResponseArea = bounds.removeFromTop(bounds.getHeight() * 0.4);  // Reserving area for the response window   ~A
+    auto graphicResponseArea = bounds.removeFromTop(bounds.getHeight() * 0.3);  // Reserving area for the response window   ~A
     responseCurveWindow.setBounds(graphicResponseArea);
 
     auto lowCutFilterFreqArea = bounds.removeFromLeft(bounds.getWidth() * 0.2);

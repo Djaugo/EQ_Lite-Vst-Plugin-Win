@@ -11,14 +11,57 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
+
+
+
+//=============================================================================
+// Adding a look&feel class that will allow editing the area inside the custom knob ~A
+struct LookAndFeel : juce::LookAndFeel_V4
+{
+    virtual void drawRotarySlider(juce::Graphics&,
+        int x, int y, int width, int height,
+        float sliderPosProportional,
+        float rotaryStartAngle,
+        float rotaryEndAngle,
+        juce::Slider&) override;
+};
+
+
 // Adding a custom knob class   ~A
 struct MyEQKnob1 : juce::Slider
 {
-    MyEQKnob1() : juce::Slider(juce::Slider::SliderStyle::RotaryHorizontalVerticalDrag,
-        juce::Slider::TextEntryBoxPosition::NoTextBox)
-    {
+    MyEQKnob1(juce::RangedAudioParameter& rap, const juce::String& unitSuffix) :
+        juce::Slider(juce::Slider::SliderStyle::RotaryHorizontalVerticalDrag,
+        juce::Slider::TextEntryBoxPosition::TextBoxBelow),
+        aParam(&rap),
+        suffix(unitSuffix)
 
+    {
+        setLookAndFeel(&lnf);
     }
+
+    ~MyEQKnob1()
+    {
+        setLookAndFeel(nullptr);
+    }
+
+    // Adding a container for the min max values to be displayed below each knob    ~A
+    struct LabelPosition
+    {
+        float position;
+        juce::String label;
+    };
+
+    juce::Array<LabelPosition> labelsArray;
+
+    void paint(juce::Graphics& g) override;
+    juce::Rectangle<int> getSliderBounds() const;
+    int getTextHeight() const { return 14; }
+    juce::String getDisplayString() const;
+private:
+    LookAndFeel lnf;
+    juce::RangedAudioParameter* aParam;
+    juce::String suffix;
 };
 
 // Creating a response curve window as a separate component obj so it doesn't draw outside the bounds   ~A
@@ -45,6 +88,10 @@ private:
     juce::Atomic<bool> parametersChanged{ false };
 
     MonoChain monoChain;
+
+    // Creating a function that will update the response curve the first time
+    // GUI is displayed     ~A
+    void updateChain();
 };
 
 //==============================================================================
