@@ -81,6 +81,8 @@ struct ResponseCurveWindow : juce::Component,
 
     void paint(juce::Graphics& g) override;
 
+    void resized() override;
+
 private:
     EQ_LiteAudioProcessor& audioProcessor;
 
@@ -92,12 +94,22 @@ private:
     // Creating a function that will update the response curve the first time
     // GUI is displayed     ~A
     void updateChain();
+
+    juce::Image responseBackground;
+
+    // A function to return the slightly shrunken response window render area   ~A
+    juce::Rectangle<int> getRenderArea();
+
+    // And a function that returns even smaller analysis area 
+    // (for boundary lines visibility)  ~A
+    juce::Rectangle<int> getAnalysisArea();
+
 };
 
 //==============================================================================
 /**
 */
-// Adding classes to inherit from and overriding their methods to enable
+// Adding classes to inherit from and override their methods to enable
 // refreshing the response curve        ~A
 class EQ_LiteAudioProcessorEditor  : public juce::AudioProcessorEditor
 

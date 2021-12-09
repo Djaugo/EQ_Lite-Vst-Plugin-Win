@@ -6,6 +6,7 @@
   ==============================================================================
 */
 
+
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
@@ -189,7 +190,9 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll(Colour(0u, 0u, 0u));
    
-    auto graphicResponseArea = getLocalBounds();
+    g.drawImage(responseBackground, getLocalBounds().toFloat());
+
+    auto graphicResponseArea = getAnalysisArea();
 
     int w = graphicResponseArea.getWidth();
 
@@ -261,19 +264,179 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
     // Continuing the response curve by drawing a new line with different bearing from pixel to pixel   ~A
     for (size_t i = 1; i < magnitudes.size(); i++)
     {
-        responseCurve.lineTo(graphicResponseArea.getX() + i, map(magnitudes.at(i)));
+        // Trying some walkaround to fix the response cureve's drawing area problem     ~A
+        
+        // Declaring bools for clarity of the subsequent if-chain   ~A
+         bool isCurrMagWithinBounds{ false };
+         bool isPrevMagWithinBounds{ false };
+
+         if (magnitudes.at(i) > -25 && magnitudes.at(i) < 25)
+             isCurrMagWithinBounds = true;
+         if (magnitudes.at(i - 1) > -25 && magnitudes.at(i - 1) < 25)
+             isPrevMagWithinBounds = true;
+
+         // Walkaround logic to keep the response curve vertically within shrunken window bounds    ~A
+
+         if (isCurrMagWithinBounds && isPrevMagWithinBounds)
+         {
+             responseCurve.lineTo(graphicResponseArea.getX() + i, map(magnitudes.at(i)));
+         }
+         else if (isCurrMagWithinBounds && !isPrevMagWithinBounds)
+         {
+             responseCurve.startNewSubPath(graphicResponseArea.getX() + i, map(magnitudes.at(i)));
+         }
+    
     }
 
 
     // Drawing an outline and the path   ~A
     g.setColour(Colours::burlywood);
-    g.drawRoundedRectangle(graphicResponseArea.toFloat(), 10.f, 2.f);
+    g.drawRoundedRectangle(getRenderArea().toFloat(), 10.f, 2.f);
     g.setColour(Colours::azure);
     g.strokePath(responseCurve, PathStrokeType(2.f));
 
     
 }
 
+void ResponseCurveWindow::resized()
+{
+    using namespace juce;
+    responseBackground = Image(Image::PixelFormat::RGB, getWidth(), getHeight(), true);
+    
+    Graphics g(responseBackground);
+
+    // Creating an array holding the frequencies that will be marked on the response window grid    ~A
+    Array<float> frequencies
+    {
+        20, 50, 100,
+        200, 500, 1000,
+        2000, 5000, 10000,
+        20000
+    };
+    
+    // Declaring the new limited drawing boundaries     ~A
+    auto analysisArea = getAnalysisArea();
+    auto left = analysisArea.getX();
+    auto right = analysisArea.getRight();
+    auto top = analysisArea.getY();
+    auto bottom = analysisArea.getBottom();
+    auto width = analysisArea.getWidth();
+    // Mapping the frequencies into a normalised range and containing them 
+    // within limited boundaries   ~A
+    Array<float> xs;
+    g.setColour(Colours::grey);
+    for (auto freq : frequencies)
+    {
+        auto normX = mapFromLog10(freq, 20.f, 20000.f);
+        auto newX = left + width * normX;
+        xs.add(newX);
+
+        if (freq != 20 && freq != 20000)
+        g.drawVerticalLine(newX, top, bottom);
+    }
+
+
+    // Doing the same but for the horizontal gain grid lines    ~A
+    Array<float> gains{-24, -12, 0, 12, 24};
+    for (auto gaindB : gains)
+    {
+        auto y = jmap(gaindB, -24.f, 24.f, float(bottom), float(top));
+        g.setColour(gaindB == 0 ? Colours::burlywood : Colours::darkgrey);
+        if(gaindB == 24 || gaindB == -24)
+        g.drawHorizontalLine(y, left+3, right-3);
+        else
+        g.drawHorizontalLine(y, left, right);
+    }
+
+    // Drawing the grid labels  ~A
+    g.setColour(Colours::lightgrey);
+    const int fontHeight = 10;
+    g.setFont(fontHeight);
+
+    for (int i = 0; i < frequencies.size(); i++)
+    {
+        auto f = frequencies[i];
+        auto x = xs[i];
+        
+        bool addK = false;
+        String str;
+        if (f > 999.f)
+        {
+            addK = true;
+            f /= 1000.f;
+        }
+        str << f << " ";
+        if (addK)
+            str << "k";
+        str << "Hz";
+
+        auto textWidth = g.getCurrentFont().getStringWidth(str);
+
+        Rectangle<int> r;
+        r.setSize(textWidth, fontHeight);
+        r.setCentre(x, 0);
+        r.setY(bottom+6);
+
+        g.drawFittedText(str, r, juce::Justification::centred, 1);
+    }
+    
+    // RHS gain labels for the response curve ~A
+    for (auto gaindB : gains)
+    {
+        auto y = jmap(gaindB, -24.f, 24.f, float(bottom), float(top));
+        String str;
+        if (gaindB > 0)
+            str << "+";
+        str << gaindB;
+        str <<" dB";
+
+        auto textWidth = g.getCurrentFont().getStringWidth(str);
+
+        Rectangle<int> r;
+        r.setSize(textWidth, fontHeight);
+        r.setX(getWidth() - textWidth);
+        r.setCentre(r.getCentreX(), y);
+
+        g.setColour(gaindB == 0 ? Colours::burlywood : Colours::lightgrey);
+        g.drawFittedText(str, r, juce::Justification::centred, 1);
+
+        // LHS gain labels for the spectrum display     ~A
+        str.clear();
+            // Silly walkaround coz I can't force the  0 dB label to be 
+            // right-oriented with the justification flag below  ~A
+        if ((gaindB - 24.f) == 0)
+        str << "   " << (gaindB - 24.f) << " dB";
+        else
+        str << (gaindB - 24.f) << " dB";
+
+        r.setX(1);
+        textWidth = g.getCurrentFont().getStringWidth(str);
+        r.setSize(textWidth, fontHeight);
+        g.setColour(Colours::lightgrey);
+        g.drawFittedText(str, r, juce::Justification::right, 1);
+    }
+
+
+}
+
+juce::Rectangle<int> ResponseCurveWindow::getRenderArea()
+{
+    auto bounds = getLocalBounds();
+    bounds.removeFromBottom(12);
+    bounds.removeFromTop(5);
+    bounds.removeFromLeft(35);
+    bounds.removeFromRight(35);   
+
+    return bounds;
+}
+
+juce::Rectangle<int> ResponseCurveWindow::getAnalysisArea()
+{
+    auto bounds = getRenderArea();
+    bounds.removeFromTop(4);
+    bounds.removeFromBottom(4);
+    return bounds;
+}
 
 //==============================================================================
 EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& p)
@@ -349,6 +512,7 @@ EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& 
 
 
     setSize (800, 600);
+    
 }
 
 EQ_LiteAudioProcessorEditor::~EQ_LiteAudioProcessorEditor()
@@ -393,6 +557,7 @@ void EQ_LiteAudioProcessorEditor::resized()
     auto bounds = getLocalBounds();
     auto graphicResponseArea = bounds.removeFromTop(bounds.getHeight() * 0.3);  // Reserving area for the response window   ~A
     responseCurveWindow.setBounds(graphicResponseArea);
+    
 
     auto lowCutFilterFreqArea = bounds.removeFromLeft(bounds.getWidth() * 0.2);
     //lowCutFilterFreqArea = lowCutFilterFreqArea.removeFromTop(lowCutFilterFreqArea.getHeight() * 0.84);
