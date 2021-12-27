@@ -128,7 +128,11 @@ juce::Rectangle<int> MyEQKnob1::getSliderBounds() const
 }
 
 
-ResponseCurveWindow::ResponseCurveWindow(EQ_LiteAudioProcessor& p) : audioProcessor(p)
+ResponseCurveWindow::ResponseCurveWindow(EQ_LiteAudioProcessor& p) :
+    audioProcessor(p),
+    //leftChannelFifo(&audioProcessor.leftChannelFifo)
+    leftPathProducer(audioProcessor.leftChannelFifo),
+    rightPathProducer(audioProcessor.rightChannelFifo)
 {
     // Grabbing all the audio parameters and becoming a listener of them    ~A
     const auto& parameters = audioProcessor.getParameters();
@@ -136,6 +140,8 @@ ResponseCurveWindow::ResponseCurveWindow(EQ_LiteAudioProcessor& p) : audioProces
     {
         parameter->addListener(this);
     }
+
+ 
 
     updateChain();
 
@@ -157,15 +163,69 @@ void ResponseCurveWindow::parameterValueChanged(int parameterIndex, float newVal
     parametersChanged.set(true);
 }
 
+void PathProducer::process(juce::Rectangle<float> fftBounds, double sampleRate)
+{
+    juce::AudioBuffer<float> tempIncomingBuffer;
+
+    while (leftChannelFifo->getNumCompleteBuffersAvailable() > 0)
+    {
+        if (leftChannelFifo->getAudioBuffer(tempIncomingBuffer))
+        {
+            auto size = tempIncomingBuffer.getNumSamples();
+
+            juce::FloatVectorOperations::copy(monoBuffer.getWritePointer(0, 0),
+                monoBuffer.getReadPointer(0, size),
+                monoBuffer.getNumSamples() - size);
+            juce::FloatVectorOperations::copy(monoBuffer.getWritePointer(0, monoBuffer.getNumSamples() - size),
+                tempIncomingBuffer.getReadPointer(0, 0),
+                size);
+
+            leftChannelFFTDataGenerator.produceFFTDataForRendering(monoBuffer, -48.f);
+        }
+    }
+
+    // If there are FFT data buffers to pull and we can pull them, generate a path  ~A
+    
+    const auto fftSize = leftChannelFFTDataGenerator.getFFTSize();
+    const auto binWidth = sampleRate / (double)fftSize;
+
+    while (leftChannelFFTDataGenerator.getNumAvailableFFTDataBlokcs() > 0)
+    {
+        std::vector<float> fftData;
+        if (leftChannelFFTDataGenerator.getFFTData(fftData))
+        {
+            pathProducer.generatePath(fftData, fftBounds, fftSize, binWidth, -48.f);
+        }
+    }
+
+    // While there are paths that can be pulled, pull as many as possible,
+    // we can only display the most recent path ~A
+    while (pathProducer.getNumPathsAvailable())
+    {
+        pathProducer.getPath(leftChannelFFTPath);
+    }
+}
+
 void ResponseCurveWindow::timerCallback()
 {
+    
+    auto fftBounds = getAnalysisArea().toFloat();
+    auto sampleRate = audioProcessor.getSampleRate();
+
+    leftPathProducer.process(fftBounds, sampleRate);
+    rightPathProducer.process(fftBounds, sampleRate);
+   
+
     if (parametersChanged.compareAndSetBool(false, true))
     {
         // Updating the monochain   ~A
         updateChain();
         // Signaling a repaint  ~A
-        repaint();
+        //repaint();
     }
+    // Changed the repaint call from only when parameters changed to consant
+    // due to the need of painting the spectrum    ~A
+    repaint();
 }
 
 void ResponseCurveWindow::updateChain()
@@ -285,9 +345,23 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
          {
              responseCurve.startNewSubPath(graphicResponseArea.getX() + i, map(magnitudes.at(i)));
          }
-    
+
+        
+        
     }
 
+    // Drawing the spectrum analyser    ~A
+    auto leftChannelFFTPath = leftPathProducer.getPath();
+    leftChannelFFTPath.applyTransform(AffineTransform().translation(graphicResponseArea.getX(), graphicResponseArea.getY()));
+    
+    g.setColour(Colours::lightpink);
+    g.strokePath(leftChannelFFTPath, PathStrokeType(1));
+
+    auto rightChannelFFTPath = rightPathProducer.getPath();
+    rightChannelFFTPath.applyTransform(AffineTransform().translation(graphicResponseArea.getX(), graphicResponseArea.getY()));
+    
+    g.setColour(Colours::lightyellow);
+    g.strokePath(rightChannelFFTPath, PathStrokeType(1));
 
     // Drawing an outline and the path   ~A
     g.setColour(Colours::burlywood);

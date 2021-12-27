@@ -109,6 +109,10 @@ void EQ_LiteAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     // Helper function to update all the filters (check its declaration)     ~A
 
     updateFilters();
+
+    // Preparing the fifos for spectrum analyser    ~A
+    leftChannelFifo.prepare(samplesPerBlock);
+    rightChannelFifo.prepare(samplesPerBlock);
 }
 
 void EQ_LiteAudioProcessor::releaseResources()
@@ -173,6 +177,10 @@ void EQ_LiteAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     leftChain.process(leftContext);
     rightChain.process(rightContext);
+
+    // Pushing the buffers into fifo    ~A
+    leftChannelFifo.update(buffer);
+    rightChannelFifo.update(buffer);
 }
 
 //==============================================================================
