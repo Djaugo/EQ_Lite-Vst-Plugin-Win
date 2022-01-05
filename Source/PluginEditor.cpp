@@ -417,7 +417,7 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
     g.setColour(Colours::burlywood);
     g.drawRoundedRectangle(getRenderArea().toFloat(), 10.f, 2.f);
     auto color = Colours::azure;
-    //auto color = EQ_LiteAudioProcessorEditor::allBypassButton.getAllBypassToggleState() ? Colours::dimgrey : Colours::azure;
+    //auto color = EQ_LiteAudioProcessorEditor::A ? Colours::dimgrey : Colours::azure;
     g.setColour(color);
     g.strokePath(responseCurve, PathStrokeType(2.f));
 
@@ -675,7 +675,14 @@ void EQ_LiteAudioProcessorEditor::paint (juce::Graphics& g)
 {
     using namespace juce;
     //g.fillAll(Colours::black);
-    //g.drawImageAt
+    
+    /*juce::File backgroundTexture;
+    juce::FileInputStream(&backgroundTexture);
+    juce::PNGImageFormat image;
+    image.findImageFormatForStream()*/
+    
+     
+    
     // Writing the band names
     auto textBounds = getLocalBounds();
     juce::Rectangle<int> textR;
@@ -690,8 +697,11 @@ void EQ_LiteAudioProcessorEditor::paint (juce::Graphics& g)
     //g.setColour(Colours::beige);
     //juce::Rectangle<float> lcOutline(200.f, 200.f, 200.f, 200.f);
     //g.drawRoundedRectangle(lcOutline, 50.f, 5.f);
+   
+    Image backgroundTexture = ImageCache::getFromMemory(BinaryData::basictexture_png, BinaryData::basictexture_pngSize);
+    g.setOpacity(1.0f);
+    g.drawImageAt(backgroundTexture, 0, 0, false);
     
-
 
 
 

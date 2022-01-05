@@ -99,7 +99,7 @@ struct AnalyzerPathGenerator
         int numBins = (int)fftSize / 2;
 
         PathType p;
-        p.preallocateSpace(3 * (int)fftBounds.getWidth();
+        p.preallocateSpace(3 * (int)fftBounds.getWidth());
 
         auto map = [bottom, top, negativeInfinity](float v)
         {
@@ -297,11 +297,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    // Getter function for the allBypassButton toggle state ~A
-    bool getAllBypassToggleState()
-    {
-        return allBypassButton.getToggleState();
-    }
+   
 
 private:
     // This reference is provided as a quick way for your editor to
