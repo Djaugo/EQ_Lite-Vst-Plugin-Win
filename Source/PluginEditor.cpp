@@ -37,14 +37,14 @@ void LookAndFeel::drawRotarySlider(juce::Graphics& g,
     r1.setLeft(center.getX() - 6);
     r1.setRight(center.getX() + 6);
     r1.setTop(bounds.getY());
-    r1.setBottom(center.getY()-25);
+    r1.setBottom(center.getY()-15);
 
     
     Rectangle<float> r2;
     r2.setLeft(center.getX() - 4);
     r2.setRight(center.getX() + 4);
     r2.setTop(bounds.getY() +2);
-    r2.setBottom(center.getY() - 27);
+    r2.setBottom(center.getY() - 17);
 
     p1.addRectangle(r1);
     p2.addRectangle(r2);
@@ -62,6 +62,41 @@ void LookAndFeel::drawRotarySlider(juce::Graphics& g,
 
 }
 
+// Drawing the toggle bypass button
+void LookAndFeel::drawToggleButton(juce::Graphics& g,
+                                   juce::ToggleButton& toggleButton,
+                                   bool shouldDrawButtonAsHighlighted,
+                                   bool ShouldDrawButtonAsDown)
+{
+    using namespace juce;
+    Path powerButton;
+    auto bounds = toggleButton.getLocalBounds();
+
+    auto size = jmin(bounds.getWidth(), bounds.getHeight()) - 6;
+    auto r = bounds.withSizeKeepingCentre(size, size).toFloat();
+
+    float ang = 30.f;
+    size -= 6;
+
+    powerButton.addCentredArc(r.getCentreX(), 
+                              r.getCentreY(), 
+                              size * 0.5, 
+                              size * 0.5, 
+                              0.f, 
+                              degreesToRadians(ang), 
+                              degreesToRadians(360.f - ang),
+                              true);
+    powerButton.startNewSubPath(r.getCentreX(), r.getY());
+    powerButton.lineTo(r.getCentre());
+
+    PathStrokeType pst(2.f, PathStrokeType::JointStyle::curved);
+
+    auto color = toggleButton.getToggleState() ? Colours::dimgrey : Colours::azure;
+
+    g.setColour(color);
+    g.strokePath(powerButton, pst);
+    g.drawEllipse(r, 1);
+}
 
 // Implementing paint function to draw the custom knobs     ~A
 void MyEQKnob1::paint(juce::Graphics& g)
@@ -122,7 +157,7 @@ juce::Rectangle<int> MyEQKnob1::getSliderBounds() const
     auto bounds = getLocalBounds();
     
     juce::Rectangle<int> r;
-    r.setSize(90, 90);
+    r.setSize(70, 70);
     r.setCentre(bounds.getCentreX(), bounds.getCentreY());
     return r;
 }
@@ -130,7 +165,6 @@ juce::Rectangle<int> MyEQKnob1::getSliderBounds() const
 
 ResponseCurveWindow::ResponseCurveWindow(EQ_LiteAudioProcessor& p) :
     audioProcessor(p),
-    //leftChannelFifo(&audioProcessor.leftChannelFifo)
     leftPathProducer(audioProcessor.leftChannelFifo),
     rightPathProducer(audioProcessor.rightChannelFifo)
 {
@@ -210,6 +244,7 @@ void ResponseCurveWindow::timerCallback()
 {
     
     auto fftBounds = getAnalysisArea().toFloat();
+    fftBounds.removeFromLeft(20);
     auto sampleRate = audioProcessor.getSampleRate();
 
     leftPathProducer.process(fftBounds, sampleRate);
@@ -231,6 +266,14 @@ void ResponseCurveWindow::timerCallback()
 void ResponseCurveWindow::updateChain()
 {
     auto chainSettings = getChainSettings(audioProcessor.apvts);
+
+    monoChain.setBypassed<ChainPositions::LowCut>(chainSettings.lowCutBypassed);
+    monoChain.setBypassed<ChainPositions::Band1>(chainSettings.band1Bypassed);
+    monoChain.setBypassed<ChainPositions::Band2>(chainSettings.band2Bypassed);
+    monoChain.setBypassed<ChainPositions::Band3>(chainSettings.band3Bypassed);
+    monoChain.setBypassed<ChainPositions::HighCut>(chainSettings.highCutBypassed);
+    
+
     auto band1Coefficients = makeBand1Filter(chainSettings, audioProcessor.getSampleRate());
     auto band2Coefficients = makeBand2Filter(chainSettings, audioProcessor.getSampleRate());
     auto band3Coefficients = makeBand3Filter(chainSettings, audioProcessor.getSampleRate());
@@ -286,23 +329,30 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
             magnitude *= band3.coefficients->getMagnitudeForFrequency(freq, sampleRate);
 
         // 4 slope options of low and high cut ~A
-        if (!lowcut.isBypassed<0>())
-            magnitude *= lowcut.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-        if (!lowcut.isBypassed<1>())
-            magnitude *= lowcut.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-        if (!lowcut.isBypassed<2>())
-            magnitude *= lowcut.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-        if (!lowcut.isBypassed<3>())
-            magnitude *= lowcut.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-
-        if (!highcut.isBypassed<0>())
-            magnitude *= highcut.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-        if (!highcut.isBypassed<1>())
-            magnitude *= highcut.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-        if (!highcut.isBypassed<2>())
-            magnitude *= highcut.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-        if (!highcut.isBypassed<3>())
-            magnitude *= highcut.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+        if (!monoChain.isBypassed<ChainPositions::LowCut>())
+        {
+            if (!lowcut.isBypassed<0>())
+                magnitude *= lowcut.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+            if (!lowcut.isBypassed<1>())
+                magnitude *= lowcut.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+            if (!lowcut.isBypassed<2>())
+                magnitude *= lowcut.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+            if (!lowcut.isBypassed<3>())
+                magnitude *= lowcut.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+        }
+       
+        if (!monoChain.isBypassed<ChainPositions::HighCut>())
+        {
+            if (!highcut.isBypassed<0>())
+                magnitude *= highcut.get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+            if (!highcut.isBypassed<1>())
+                magnitude *= highcut.get<1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+            if (!highcut.isBypassed<2>())
+                magnitude *= highcut.get<2>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+            if (!highcut.isBypassed<3>())
+                magnitude *= highcut.get<3>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+        }
+        
 
         magnitudes[i] = Decibels::gainToDecibels(magnitude);
     }
@@ -366,7 +416,9 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
     // Drawing an outline and the path   ~A
     g.setColour(Colours::burlywood);
     g.drawRoundedRectangle(getRenderArea().toFloat(), 10.f, 2.f);
-    g.setColour(Colours::azure);
+    auto color = Colours::azure;
+    //auto color = EQ_LiteAudioProcessorEditor::allBypassButton.getAllBypassToggleState() ? Colours::dimgrey : Colours::azure;
+    g.setColour(color);
     g.strokePath(responseCurve, PathStrokeType(2.f));
 
     
@@ -499,7 +551,7 @@ juce::Rectangle<int> ResponseCurveWindow::getRenderArea()
     bounds.removeFromBottom(12);
     bounds.removeFromTop(5);
     bounds.removeFromLeft(35);
-    bounds.removeFromRight(35);   
+    bounds.removeFromRight(35); 
 
     return bounds;
 }
@@ -509,6 +561,7 @@ juce::Rectangle<int> ResponseCurveWindow::getAnalysisArea()
     auto bounds = getRenderArea();
     bounds.removeFromTop(4);
     bounds.removeFromBottom(4);
+ 
     return bounds;
 }
 
@@ -542,7 +595,15 @@ EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& 
     lowCutFreqKnobAttachment(audioProcessor.apvts, "LowCut Freq", lowCutFreqKnob),
     lowCutSlopeKnobAttachment(audioProcessor.apvts, "LowCut Slope", lowCutSlopeKnob),
     highCutFreqKnobAttachment(audioProcessor.apvts, "HiCut Freq", highCutFreqKnob),
-    highCutSlopeKnobAttachment(audioProcessor.apvts, "HiCut Slope", highCutSlopeKnob)
+    highCutSlopeKnobAttachment(audioProcessor.apvts, "HiCut Slope", highCutSlopeKnob),
+
+    lowcutBypassButtonAttachment(audioProcessor.apvts, "LowCut Bypassed", lowcutBypassButton),
+    highcutBypassButtonAttachment(audioProcessor.apvts, "HighCut Bypassed", highcutBypassButton),
+    band1BypassButtonAttachment(audioProcessor.apvts, "Band1 Bypassed", band1BypassButton),
+    band2BypassButtonAttachment(audioProcessor.apvts, "Band2 Bypassed", band2BypassButton),
+    band3BypassButtonAttachment(audioProcessor.apvts, "Band3 Bypassed", band3BypassButton),
+    allBypassButtonAttachment(audioProcessor.apvts, "All Bypassed", allBypassButton),
+    analyzerEnabledButtonAttachment(audioProcessor.apvts, "Analyzer Enabled", analyzerEnabledButton)
 
 
 
@@ -584,14 +645,28 @@ EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& 
         addAndMakeVisible(component);
     }
 
+    lowcutBypassButton.setLookAndFeel(&lnf);
+    band1BypassButton.setLookAndFeel(&lnf);
+    band2BypassButton.setLookAndFeel(&lnf);
+    band3BypassButton.setLookAndFeel(&lnf);
+    highcutBypassButton.setLookAndFeel(&lnf);
+    allBypassButton.setLookAndFeel(&lnf);
+    
 
+
+    // Size of the whole plugin window     ~A
     setSize (800, 600);
     
 }
 
 EQ_LiteAudioProcessorEditor::~EQ_LiteAudioProcessorEditor()
 {
-   
+    lowcutBypassButton.setLookAndFeel(nullptr);
+    band1BypassButton.setLookAndFeel(nullptr);
+    band2BypassButton.setLookAndFeel(nullptr);
+    band3BypassButton.setLookAndFeel(nullptr);
+    highcutBypassButton.setLookAndFeel(nullptr);
+    allBypassButton.setLookAndFeel(nullptr);
 
 }
 
@@ -605,7 +680,7 @@ void EQ_LiteAudioProcessorEditor::paint (juce::Graphics& g)
     auto textBounds = getLocalBounds();
     juce::Rectangle<int> textR;
     textR.setSize(690, 300);
-    textR.setCentre(textBounds.getCentreX(), 195);
+    textR.setCentre(textBounds.getCentreX(), 215);
     g.setColour(Colour(220u, 220u, 220u));
     g.setFont(20);
     g.drawFittedText("Low cut                            Peak band 1                         Peak band 2                        Peak band 3                          High cut",
@@ -634,50 +709,120 @@ void EQ_LiteAudioProcessorEditor::resized()
     
 
     auto lowCutFilterFreqArea = bounds.removeFromLeft(bounds.getWidth() * 0.2);
-    //lowCutFilterFreqArea = lowCutFilterFreqArea.removeFromTop(lowCutFilterFreqArea.getHeight() * 0.84);
-    auto highCutFilterFreqArea = bounds.removeFromRight(bounds.getWidth() * 0.25);
-    auto band1FreqArea = bounds.removeFromLeft(bounds.getWidth() * 0.33);
-    auto band2FreqArea = bounds.removeFromLeft(bounds.getWidth() * 0.5);
-    auto band3FreqArea = bounds;
+    auto lowCutFilterSlopeArea = lowCutFilterFreqArea.removeFromBottom(lowCutFilterFreqArea.getHeight() * 0.5);
+    lowCutFilterFreqArea.setTop(200);
+    lowCutFilterFreqArea.setBottom(350);
+    lowCutFilterSlopeArea.setTop(325);
+    lowCutFilterSlopeArea.setBottom(475);
 
+    auto highCutFilterFreqArea = bounds.removeFromRight(bounds.getWidth() * 0.25);
+    auto highCutFilterSlopeArea = highCutFilterFreqArea.removeFromBottom(highCutFilterFreqArea.getHeight() * 0.5);
+    highCutFilterFreqArea.setTop(200);
+    highCutFilterFreqArea.setBottom(350);
+    highCutFilterSlopeArea.setTop(325);
+    highCutFilterSlopeArea.setBottom(475);
+
+    auto band1FreqArea = bounds.removeFromLeft(bounds.getWidth() * 0.33);
     auto band1GainArea = band1FreqArea.removeFromBottom(band1FreqArea.getHeight() * 0.66);
     auto band1QArea = band1GainArea.removeFromBottom(band1GainArea.getHeight() * 0.5);
+    band1FreqArea.setTop(200);
+    band1FreqArea.setBottom(350);
+    band1GainArea.setTop(325);
+    band1GainArea.setBottom(475);
+    band1QArea.setTop(450);
+    band1QArea.setBottom(600);
+
+    auto band2FreqArea = bounds.removeFromLeft(bounds.getWidth() * 0.5);
     auto band2GainArea = band2FreqArea.removeFromBottom(band2FreqArea.getHeight() * 0.66);
     auto band2QArea = band2GainArea.removeFromBottom(band2GainArea.getHeight() * 0.5);
+    band2FreqArea.setTop(200);
+    band2FreqArea.setBottom(350);
+    band2GainArea.setTop(325);
+    band2GainArea.setBottom(475);
+    band2QArea.setTop(450);
+    band2QArea.setBottom(600);
+
+    auto band3FreqArea = bounds;
     auto band3GainArea = band3FreqArea.removeFromBottom(band3FreqArea.getHeight() * 0.66);
     auto band3QArea = band3GainArea.removeFromBottom(band3GainArea.getHeight() * 0.5);
-
-    auto lowCutFilterSlopeArea = lowCutFilterFreqArea.removeFromBottom(lowCutFilterFreqArea.getHeight() * 0.5);
-    auto highCutFilterSlopeArea = highCutFilterFreqArea.removeFromBottom(highCutFilterFreqArea.getHeight() * 0.5);
-    
+    band3FreqArea.setTop(200);
+    band3FreqArea.setBottom(350);
+    band3GainArea.setTop(325);
+    band3GainArea.setBottom(475);
+    band3QArea.setTop(450);
+    band3QArea.setBottom(600);
 
     lowCutFreqKnob.setBounds(lowCutFilterFreqArea);
+    lowCutSlopeKnob.setBounds(lowCutFilterSlopeArea);
     highCutFreqKnob.setBounds(highCutFilterFreqArea);
+    highCutSlopeKnob.setBounds(highCutFilterSlopeArea);
+
     band1FreqKnob.setBounds(band1FreqArea);
-    band2FreqKnob.setBounds(band2FreqArea);
-    band3FreqKnob.setBounds(band3FreqArea);
-    
     band1GainKnob.setBounds(band1GainArea);
     band1QKnob.setBounds(band1QArea);
+
+    band2FreqKnob.setBounds(band2FreqArea);
     band2GainKnob.setBounds(band2GainArea);
     band2QKnob.setBounds(band2QArea);
+
+    band3FreqKnob.setBounds(band3FreqArea);
     band3GainKnob.setBounds(band3GainArea);
     band3QKnob.setBounds(band3QArea);
-
-    lowCutSlopeKnob.setBounds(lowCutFilterSlopeArea);
-    highCutSlopeKnob.setBounds(highCutFilterSlopeArea);
     
- 
+    auto lowCutBypassArea = lowCutFilterFreqArea;
+    lowCutBypassArea.setTop(205);           
+    lowCutBypassArea.setBottom(230);
+    lowCutBypassArea.setLeft(30);
+    lowCutBypassArea.setRight(55);
+
+    auto band1BypassArea = band1FreqArea;
+    band1BypassArea.setTop(205);
+    band1BypassArea.setBottom(230);
+    band1BypassArea.setLeft(180);
+    band1BypassArea.setRight(205);
+
+    auto band2BypassArea = band2FreqArea;
+    band2BypassArea.setTop(205);
+    band2BypassArea.setBottom(230);
+    band2BypassArea.setLeft(345);
+    band2BypassArea.setRight(370);
+
+    auto band3BypassArea = band3FreqArea;
+    band3BypassArea.setTop(205);
+    band3BypassArea.setBottom(230);
+    band3BypassArea.setLeft(505);
+    band3BypassArea.setRight(530);
+
+    auto highCutBypassArea = highCutFilterFreqArea;
+    highCutBypassArea.setTop(205);
+    highCutBypassArea.setBottom(230);
+    highCutBypassArea.setLeft(675);
+    highCutBypassArea.setRight(700);
+
+    auto allBypassArea = lowCutFilterSlopeArea;
+    allBypassArea.setTop(515);
+    allBypassArea.setBottom(560);
+    allBypassArea.setLeft(20);
+    allBypassArea.setRight(65);
+
+    lowcutBypassButton.setBounds(lowCutBypassArea);
+    highcutBypassButton.setBounds(highCutBypassArea);
+    band1BypassButton.setBounds(band1BypassArea);
+    band2BypassButton.setBounds(band2BypassArea);
+    band3BypassButton.setBounds(band3BypassArea);
+    allBypassButton.setBounds(allBypassArea);
+    
+    
+  
 }
-
-
-
-
 
 std::vector<juce::Component*> EQ_LiteAudioProcessorEditor::getComponents()
 {
     std::vector<juce::Component*> compVec{ &band1FreqKnob, &band2FreqKnob, &band3FreqKnob, &band1QKnob, &band2QKnob, &band3QKnob,
                                            &band1GainKnob, &band2GainKnob, &band3GainKnob, &lowCutFreqKnob, &highCutFreqKnob, &lowCutSlopeKnob,
-                                           &highCutSlopeKnob, &responseCurveWindow};
+                                           &highCutSlopeKnob, &responseCurveWindow,
+    
+                                           &lowcutBypassButton, &band1BypassButton, &band2BypassButton, &band3BypassButton,
+                                           &highcutBypassButton, &allBypassButton, &analyzerEnabledButton};
     return compVec;
 }

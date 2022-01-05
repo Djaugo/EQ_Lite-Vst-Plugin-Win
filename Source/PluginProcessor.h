@@ -172,6 +172,9 @@ struct ChainSettings
     float band3Freq{ 0 }, band3GainDB{ 0 }, band3Quality{ 1.f };
     float lowCutFreq{ 0 }, highCutFreq{ 0 };
     int lowCutSlope{ Slope::Slope_12 }, highCutSlope{ Slope::Slope_12 };
+
+    bool lowCutBypassed{ false }, band1Bypassed{ false }, band2Bypassed{ false },
+        band3Bypassed{ false }, highCutBypassed{ false }, allBypassed{false};
 };
 
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);

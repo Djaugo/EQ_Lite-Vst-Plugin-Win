@@ -244,6 +244,14 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     chSettings.lowCutSlope = static_cast<Slope>(apvts.getRawParameterValue("LowCut Slope")->load());    // Static casting to slope enum type not to interfere   ~A
     chSettings.highCutSlope = static_cast<Slope>(apvts.getRawParameterValue("HiCut Slope")->load());
 
+    chSettings.lowCutBypassed = apvts.getRawParameterValue("LowCut Bypassed")->load() > 0.5f;
+    chSettings.band1Bypassed = apvts.getRawParameterValue("Band1 Bypassed")->load() > 0.5f;
+    chSettings.band2Bypassed = apvts.getRawParameterValue("Band2 Bypassed")->load() > 0.5f;
+    chSettings.band3Bypassed = apvts.getRawParameterValue("Band3 Bypassed")->load() > 0.5f;
+    chSettings.highCutBypassed = apvts.getRawParameterValue("HighCut Bypassed")->load() > 0.5f;
+    chSettings.allBypassed = apvts.getRawParameterValue("All Bypassed")->load() > 0.5f;
+
+
     return chSettings;
 }
 
@@ -280,6 +288,15 @@ void EQ_LiteAudioProcessor::updateBand1Filter(const ChainSettings& chainSettings
                                                                                 chainSettings.band1Quality,
                                                                                 juce::Decibels::decibelsToGain(chainSettings.band1GainDB));*/
     auto band1Coefficients = makeBand1Filter(chainSettings, getSampleRate());
+
+    leftChain.setBypassed<ChainPositions::Band1>(chainSettings.band1Bypassed);
+    rightChain.setBypassed<ChainPositions::Band1>(chainSettings.band1Bypassed);
+    if (chainSettings.allBypassed)
+    {
+        leftChain.setBypassed<ChainPositions::Band1>(true);
+        rightChain.setBypassed<ChainPositions::Band1>(true);
+    }
+
     updateCoefficients(leftChain.get<ChainPositions::Band1>().coefficients, band1Coefficients);
     updateCoefficients(rightChain.get<ChainPositions::Band1>().coefficients, band1Coefficients);
 }
@@ -291,6 +308,15 @@ void EQ_LiteAudioProcessor::updateBand2Filter(const ChainSettings& chainSettings
                                                                                  chainSettings.band2Quality,
                                                                                  juce::Decibels::decibelsToGain(chainSettings.band2GainDB));*/
     auto band2Coefficients = makeBand2Filter(chainSettings, getSampleRate());
+
+    leftChain.setBypassed<ChainPositions::Band2>(chainSettings.band2Bypassed);
+    rightChain.setBypassed<ChainPositions::Band2>(chainSettings.band2Bypassed);
+    if (chainSettings.allBypassed)
+    {
+       leftChain.setBypassed<ChainPositions::Band2>(true);
+       rightChain.setBypassed<ChainPositions::Band2>(true);
+    }
+
     updateCoefficients(leftChain.get<ChainPositions::Band2>().coefficients, band2Coefficients);
     updateCoefficients(rightChain.get<ChainPositions::Band2>().coefficients, band2Coefficients);
 }
@@ -302,6 +328,15 @@ void EQ_LiteAudioProcessor::updateBand3Filter(const ChainSettings& chainSettings
                                                                                  chainSettings.band3Quality,
                                                                                  juce::Decibels::decibelsToGain(chainSettings.band3GainDB));*/
     auto band3Coefficients = makeBand3Filter(chainSettings, getSampleRate());
+
+    leftChain.setBypassed<ChainPositions::Band3>(chainSettings.band3Bypassed);
+    rightChain.setBypassed<ChainPositions::Band3>(chainSettings.band3Bypassed);
+    if (chainSettings.allBypassed)
+    {
+        leftChain.setBypassed<ChainPositions::Band3>(true);
+        rightChain.setBypassed<ChainPositions::Band3>(true);
+    }
+
     updateCoefficients(leftChain.get<ChainPositions::Band3>().coefficients, band3Coefficients);
     updateCoefficients(rightChain.get<ChainPositions::Band3>().coefficients, band3Coefficients);
 }
@@ -318,6 +353,15 @@ void EQ_LiteAudioProcessor::updateLowCutFilters(const ChainSettings& chainSettin
     auto LcutCoefficients = makeLowCutFilter(chainSettings, getSampleRate());
     auto& leftLowCut = leftChain.get<ChainPositions::LowCut>();
     auto& rightLowCut = rightChain.get<ChainPositions::LowCut>();
+
+    leftChain.setBypassed<ChainPositions::LowCut>(chainSettings.lowCutBypassed);
+    rightChain.setBypassed<ChainPositions::LowCut>(chainSettings.lowCutBypassed);
+    if (chainSettings.allBypassed)
+    {
+        leftChain.setBypassed<ChainPositions::LowCut>(true);
+        rightChain.setBypassed<ChainPositions::LowCut>(true);
+    }
+
     updateCutFilter(leftLowCut, LcutCoefficients, chainSettings.lowCutSlope);
     updateCutFilter(rightLowCut, LcutCoefficients, chainSettings.lowCutSlope);
 }
@@ -329,6 +373,15 @@ void EQ_LiteAudioProcessor::updateHighCutFilters(const ChainSettings& chainSetti
     // Repeating the process for both channels      ~A
     auto& leftHighCut = leftChain.get<ChainPositions::HighCut>();
     auto& rightHighCut = rightChain.get<ChainPositions::HighCut>();
+
+    leftChain.setBypassed<ChainPositions::HighCut>(chainSettings.highCutBypassed);
+    rightChain.setBypassed<ChainPositions::HighCut>(chainSettings.highCutBypassed);
+    if (chainSettings.allBypassed)
+    {
+        leftChain.setBypassed<ChainPositions::HighCut>(true);
+        rightChain.setBypassed<ChainPositions::HighCut>(true);
+    }
+
     updateCutFilter(leftHighCut, HcutCoefficients, chainSettings.highCutSlope);
     updateCutFilter(rightHighCut, HcutCoefficients, chainSettings.highCutSlope);
 }
@@ -397,6 +450,16 @@ EQ_LiteAudioProcessor::createParameterLayout()
 
     layout.add(std::make_unique<juce::AudioParameterChoice>("HiCut Slope", "HiCut Slope",
         slopeChoices, 0));
+
+    // Adding bypass buttons parameters     ~A
+    layout.add(std::make_unique<juce::AudioParameterBool>("LowCut Bypassed", "LowCut Bypassed", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>("Band1 Bypassed", "Band1 Bypassed", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>("Band2 Bypassed", "Band2 Bypassed", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>("Band3 Bypassed", "Band3 Bypassed", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>("HighCut Bypassed", "HighCut Bypassed", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>("All Bypassed", "All Bypassed", false));
+
+    layout.add(std::make_unique<juce::AudioParameterBool>("Analyzer Enabled", "Analyzer Enabled", true));
 
     return layout;
 }

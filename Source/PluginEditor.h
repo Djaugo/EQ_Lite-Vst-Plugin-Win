@@ -99,7 +99,7 @@ struct AnalyzerPathGenerator
         int numBins = (int)fftSize / 2;
 
         PathType p;
-        p.preallocateSpace(3 * (int)fftBounds.getWidth());
+        p.preallocateSpace(3 * (int)fftBounds.getWidth();
 
         auto map = [bottom, top, negativeInfinity](float v)
         {
@@ -158,6 +158,11 @@ struct LookAndFeel : juce::LookAndFeel_V4
         float rotaryStartAngle,
         float rotaryEndAngle,
         juce::Slider&) override;
+
+    virtual void drawToggleButton(juce::Graphics& g,
+                                  juce::ToggleButton& toggleButton,
+                                  bool shouldDrawButtonAsHighlighted,
+                                  bool shouldDrawButtonAsDown) override;
 };
 
 
@@ -292,7 +297,11 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-
+    // Getter function for the allBypassButton toggle state ~A
+    bool getAllBypassToggleState()
+    {
+        return allBypassButton.getToggleState();
+    }
 
 private:
     // This reference is provided as a quick way for your editor to
@@ -316,9 +325,18 @@ private:
                band3QKnobAttachment, band1GainKnobAttachment, band2GainKnobAttachment,band3GainKnobAttachment, lowCutFreqKnobAttachment,
                highCutFreqKnobAttachment, lowCutSlopeKnobAttachment, highCutSlopeKnobAttachment;
 
+    juce::ToggleButton lowcutBypassButton, band1BypassButton, band2BypassButton, band3BypassButton,
+                       highcutBypassButton, allBypassButton, analyzerEnabledButton;
+
+    using ButtonAttachment = APVTS::ButtonAttachment;
+    ButtonAttachment lowcutBypassButtonAttachment, band1BypassButtonAttachment, band2BypassButtonAttachment, band3BypassButtonAttachment,
+        highcutBypassButtonAttachment, allBypassButtonAttachment, analyzerEnabledButtonAttachment;
+
     std::vector<juce::Component*> getComponents();
 
-  
+    LookAndFeel lnf;
+
+    
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ_LiteAudioProcessorEditor)
 };
