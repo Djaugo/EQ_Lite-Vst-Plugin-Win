@@ -4,8 +4,8 @@
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" cppLanguageStandard="17">
   <MAINGROUP id="nTpL5O" name="EQ_Lite">
     <GROUP id="{5C46C192-F098-F7AF-E417-5C2225835D50}" name="Resources">
-      <FILE id="L06YRO" name="basictexture.png" compile="0" resource="1"
-            file="Textures/basictexture.png"/>
+      <FILE id="dSEEKd" name="basictexture2.png" compile="0" resource="1"
+            file="Textures/basictexture2.png"/>
     </GROUP>
     <GROUP id="{5627F64C-2FEA-3CCC-7C91-661CC4364298}" name="Source">
       <FILE id="UWyuab" name="PluginProcessor.cpp" compile="1" resource="0"

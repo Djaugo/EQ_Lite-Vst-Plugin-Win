@@ -167,6 +167,7 @@ ResponseCurveWindow::ResponseCurveWindow(EQ_LiteAudioProcessor& p) :
     audioProcessor(p),
     leftPathProducer(audioProcessor.leftChannelFifo),
     rightPathProducer(audioProcessor.rightChannelFifo)
+    
 {
     // Grabbing all the audio parameters and becoming a listener of them    ~A
     const auto& parameters = audioProcessor.getParameters();
@@ -174,9 +175,7 @@ ResponseCurveWindow::ResponseCurveWindow(EQ_LiteAudioProcessor& p) :
     {
         parameter->addListener(this);
     }
-
- 
-
+   
     updateChain();
 
     startTimerHz(60);
@@ -285,6 +284,8 @@ void ResponseCurveWindow::updateChain()
     updateCoefficients(monoChain.get<ChainPositions::Band3>().coefficients, band3Coefficients);
     updateCutFilter(monoChain.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
     updateCutFilter(monoChain.get<ChainPositions::HighCut>(), highCutCoefficeints, chainSettings.highCutSlope);
+
+    allBypassed = chainSettings.allBypassed;
 }
 
 void ResponseCurveWindow::paint(juce::Graphics& g)
@@ -416,8 +417,12 @@ void ResponseCurveWindow::paint(juce::Graphics& g)
     // Drawing an outline and the path   ~A
     g.setColour(Colours::burlywood);
     g.drawRoundedRectangle(getRenderArea().toFloat(), 10.f, 2.f);
-    auto color = Colours::azure;
-    //auto color = EQ_LiteAudioProcessorEditor::A ? Colours::dimgrey : Colours::azure;
+    
+    
+    
+    auto color = (allBypassed) ? Colours::dimgrey : Colours::azure;
+    
+
     g.setColour(color);
     g.strokePath(responseCurve, PathStrokeType(2.f));
 
@@ -581,6 +586,7 @@ EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& 
     lowCutSlopeKnob(*audioProcessor.apvts.getParameter("LowCut Slope"), " dB/Oct"),
     highCutFreqKnob(*audioProcessor.apvts.getParameter("HiCut Freq"), " Hz"),
     highCutSlopeKnob(*audioProcessor.apvts.getParameter("HiCut Slope"), " dB/Oct"),
+    outputGainKnob(*audioProcessor.apvts.getParameter("Output Gain"), " dB"),
 
     responseCurveWindow(audioProcessor),
     band1FreqKnobAttachment(audioProcessor.apvts, "Band1 Freq", band1FreqKnob),
@@ -596,6 +602,7 @@ EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& 
     lowCutSlopeKnobAttachment(audioProcessor.apvts, "LowCut Slope", lowCutSlopeKnob),
     highCutFreqKnobAttachment(audioProcessor.apvts, "HiCut Freq", highCutFreqKnob),
     highCutSlopeKnobAttachment(audioProcessor.apvts, "HiCut Slope", highCutSlopeKnob),
+    outputGainKnobAttachment(audioProcessor.apvts, "Output Gain", outputGainKnob),
 
     lowcutBypassButtonAttachment(audioProcessor.apvts, "LowCut Bypassed", lowcutBypassButton),
     highcutBypassButtonAttachment(audioProcessor.apvts, "HighCut Bypassed", highcutBypassButton),
@@ -638,6 +645,8 @@ EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& 
     highCutFreqKnob.labelsArray.add({ 1.f, "20 kHz" });
     highCutSlopeKnob.labelsArray.add({ 0.f, "12 dB/Oct" });
     highCutSlopeKnob.labelsArray.add({ 1.f, "48 dB/Oct" });
+    outputGainKnob.labelsArray.add({ 0.f, "-12 dB" });
+    outputGainKnob.labelsArray.add({ 1.f, "12 dB" });
 
 
     for (auto* component : getComponents())
@@ -655,7 +664,7 @@ EQ_LiteAudioProcessorEditor::EQ_LiteAudioProcessorEditor(EQ_LiteAudioProcessor& 
 
 
     // Size of the whole plugin window     ~A
-    setSize (800, 600);
+    setSize (800, 625);
     
 }
 
@@ -676,29 +685,23 @@ void EQ_LiteAudioProcessorEditor::paint (juce::Graphics& g)
     using namespace juce;
     //g.fillAll(Colours::black);
     
-    /*juce::File backgroundTexture;
-    juce::FileInputStream(&backgroundTexture);
-    juce::PNGImageFormat image;
-    image.findImageFormatForStream()*/
-    
-     
     
     // Writing the band names
-    auto textBounds = getLocalBounds();
+   /* auto textBounds = getLocalBounds();
     juce::Rectangle<int> textR;
     textR.setSize(690, 300);
     textR.setCentre(textBounds.getCentreX(), 215);
     g.setColour(Colour(220u, 220u, 220u));
     g.setFont(20);
     g.drawFittedText("Low cut                            Peak band 1                         Peak band 2                        Peak band 3                          High cut",
-                      textR, juce::Justification::Flags::left, 1, 0.5f);
+                      textR, juce::Justification::Flags::left, 1, 0.5f);*/
 
     //``````````````// Drawing the rest of the GUI details  ~A
     //g.setColour(Colours::beige);
     //juce::Rectangle<float> lcOutline(200.f, 200.f, 200.f, 200.f);
     //g.drawRoundedRectangle(lcOutline, 50.f, 5.f);
    
-    Image backgroundTexture = ImageCache::getFromMemory(BinaryData::basictexture_png, BinaryData::basictexture_pngSize);
+    Image backgroundTexture = ImageCache::getFromMemory(BinaryData::basictexture2_png, BinaryData::basictexture2_pngSize);
     g.setOpacity(1.0f);
     g.drawImageAt(backgroundTexture, 0, 0, false);
     
@@ -762,6 +765,10 @@ void EQ_LiteAudioProcessorEditor::resized()
     band3QArea.setTop(450);
     band3QArea.setBottom(600);
 
+    auto outputGainArea = highCutFilterSlopeArea;
+    outputGainArea.setTop(450);
+    outputGainArea.setBottom(600);
+
     lowCutFreqKnob.setBounds(lowCutFilterFreqArea);
     lowCutSlopeKnob.setBounds(lowCutFilterSlopeArea);
     highCutFreqKnob.setBounds(highCutFilterFreqArea);
@@ -778,6 +785,8 @@ void EQ_LiteAudioProcessorEditor::resized()
     band3FreqKnob.setBounds(band3FreqArea);
     band3GainKnob.setBounds(band3GainArea);
     band3QKnob.setBounds(band3QArea);
+
+    outputGainKnob.setBounds(outputGainArea);
     
     auto lowCutBypassArea = lowCutFilterFreqArea;
     lowCutBypassArea.setTop(205);           
@@ -830,7 +839,7 @@ std::vector<juce::Component*> EQ_LiteAudioProcessorEditor::getComponents()
 {
     std::vector<juce::Component*> compVec{ &band1FreqKnob, &band2FreqKnob, &band3FreqKnob, &band1QKnob, &band2QKnob, &band3QKnob,
                                            &band1GainKnob, &band2GainKnob, &band3GainKnob, &lowCutFreqKnob, &highCutFreqKnob, &lowCutSlopeKnob,
-                                           &highCutSlopeKnob, &responseCurveWindow,
+                                           &highCutSlopeKnob, &outputGainKnob, &responseCurveWindow,
     
                                            &lowcutBypassButton, &band1BypassButton, &band2BypassButton, &band3BypassButton,
                                            &highcutBypassButton, &allBypassButton, &analyzerEnabledButton};

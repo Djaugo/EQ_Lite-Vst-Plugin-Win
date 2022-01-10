@@ -243,6 +243,7 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     chSettings.band3Quality = apvts.getRawParameterValue("Band3 Quality")->load();
     chSettings.lowCutSlope = static_cast<Slope>(apvts.getRawParameterValue("LowCut Slope")->load());    // Static casting to slope enum type not to interfere   ~A
     chSettings.highCutSlope = static_cast<Slope>(apvts.getRawParameterValue("HiCut Slope")->load());
+    chSettings.gainDB = apvts.getRawParameterValue("Output Gain")->load();
 
     chSettings.lowCutBypassed = apvts.getRawParameterValue("LowCut Bypassed")->load() > 0.5f;
     chSettings.band1Bypassed = apvts.getRawParameterValue("Band1 Bypassed")->load() > 0.5f;
@@ -279,6 +280,7 @@ Coefficients makeBand3Filter(const ChainSettings& chainSettings, double sampleRa
                                                                chainSettings.band3Quality,
                                                                juce::Decibels::decibelsToGain(chainSettings.band3GainDB));
 }
+
 
 // Code cleaning helper functions declarations      ~A
 void EQ_LiteAudioProcessor::updateBand1Filter(const ChainSettings& chainSettings)
@@ -341,6 +343,20 @@ void EQ_LiteAudioProcessor::updateBand3Filter(const ChainSettings& chainSettings
     updateCoefficients(rightChain.get<ChainPositions::Band3>().coefficients, band3Coefficients);
 }
 
+void EQ_LiteAudioProcessor::updateOutputGain(const ChainSettings& chainSettings)
+{
+    leftChain.setBypassed<ChainPositions::OutputDB>(false);
+    rightChain.setBypassed<ChainPositions::OutputDB>(false);
+    if (chainSettings.allBypassed)
+    {
+        leftChain.setBypassed<ChainPositions::OutputDB>(true);
+        rightChain.setBypassed<ChainPositions::OutputDB>(true);
+    }
+
+    leftChain.get<ChainPositions::OutputDB>().setGainDecibels(chainSettings.gainDB);
+    rightChain.get<ChainPositions::OutputDB>().setGainDecibels(chainSettings.gainDB);
+}
+
 void updateCoefficients(Coefficients& old, const Coefficients& replacement)
 {
     *old = *replacement;
@@ -394,6 +410,7 @@ void EQ_LiteAudioProcessor::updateFilters()
     updateBand2Filter(chainSettings);
     updateBand3Filter(chainSettings);
     updateHighCutFilters(chainSettings);
+    updateOutputGain(chainSettings);
 }
 
 
@@ -450,6 +467,9 @@ EQ_LiteAudioProcessor::createParameterLayout()
 
     layout.add(std::make_unique<juce::AudioParameterChoice>("HiCut Slope", "HiCut Slope",
         slopeChoices, 0));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Output Gain", "Output Gain",
+        juce::NormalisableRange<float>(-12.f, 12.f, 0.1f, 1.f), 0.f));
 
     // Adding bypass buttons parameters     ~A
     layout.add(std::make_unique<juce::AudioParameterBool>("LowCut Bypassed", "LowCut Bypassed", false));

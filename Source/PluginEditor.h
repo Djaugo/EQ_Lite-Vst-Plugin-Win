@@ -253,6 +253,11 @@ struct ResponseCurveWindow : juce::Component,
 
     void resized() override;
 
+    
+    
+
+    
+
 private:
     EQ_LiteAudioProcessor& audioProcessor;
 
@@ -261,6 +266,9 @@ private:
 
     MonoChain monoChain;
 
+    // A simple member to pass AllBypassed button toggle state to paint function ~A
+    bool allBypassed;
+   
     // Creating a function that will update the response curve the first time
     // GUI is displayed     ~A
     void updateChain();
@@ -281,6 +289,7 @@ private:
 
 };
 
+
 //==============================================================================
 /**
 */
@@ -297,7 +306,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-   
+    // Used for dimming the response curve when the plugin is bypassed  ~A
+    //bool isAllBypassButtonPressed = allBypassButton.getToggleState();
+    bool getAllBypassState()
+    {
+        return allBypassButton.getToggleState();
+    }
 
 private:
     // This reference is provided as a quick way for your editor to
@@ -309,7 +323,10 @@ private:
     // Creating custom knob objects and a helper function that returns a vector of them    ~A
 
     MyEQKnob1 band1FreqKnob, band2FreqKnob, band3FreqKnob, band1QKnob, band2QKnob, band3QKnob, band1GainKnob, band2GainKnob,
-              band3GainKnob, lowCutFreqKnob, highCutFreqKnob, lowCutSlopeKnob, highCutSlopeKnob;
+              band3GainKnob, lowCutFreqKnob, highCutFreqKnob, lowCutSlopeKnob, highCutSlopeKnob, outputGainKnob;
+
+    juce::ToggleButton lowcutBypassButton, band1BypassButton, band2BypassButton, band3BypassButton,
+                       highcutBypassButton, allBypassButton, analyzerEnabledButton;
 
     ResponseCurveWindow responseCurveWindow;
 
@@ -319,10 +336,9 @@ private:
 
     Attachment band1FreqKnobAttachment, band2FreqKnobAttachment, band3FreqKnobAttachment, band1QKnobAttachment, band2QKnobAttachment,
                band3QKnobAttachment, band1GainKnobAttachment, band2GainKnobAttachment,band3GainKnobAttachment, lowCutFreqKnobAttachment,
-               highCutFreqKnobAttachment, lowCutSlopeKnobAttachment, highCutSlopeKnobAttachment;
+               highCutFreqKnobAttachment, lowCutSlopeKnobAttachment, highCutSlopeKnobAttachment, outputGainKnobAttachment;
 
-    juce::ToggleButton lowcutBypassButton, band1BypassButton, band2BypassButton, band3BypassButton,
-                       highcutBypassButton, allBypassButton, analyzerEnabledButton;
+    
 
     using ButtonAttachment = APVTS::ButtonAttachment;
     ButtonAttachment lowcutBypassButtonAttachment, band1BypassButtonAttachment, band2BypassButtonAttachment, band3BypassButtonAttachment,

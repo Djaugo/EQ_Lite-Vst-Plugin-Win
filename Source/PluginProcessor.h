@@ -171,6 +171,7 @@ struct ChainSettings
     float band2Freq{ 0 }, band2GainDB{ 0 }, band2Quality{ 1.f };
     float band3Freq{ 0 }, band3GainDB{ 0 }, band3Quality{ 1.f };
     float lowCutFreq{ 0 }, highCutFreq{ 0 };
+    float gainDB{ 0 };
     int lowCutSlope{ Slope::Slope_12 }, highCutSlope{ Slope::Slope_12 };
 
     bool lowCutBypassed{ false }, band1Bypassed{ false }, band2Bypassed{ false },
@@ -184,7 +185,8 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
  // Creating aliases for convoluted namespaces   ~A
 using Filter = juce::dsp::IIR::Filter<float>;
 using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;                // 4 filters for 4 db/Oct settings  ~A
-using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, Filter, Filter, CutFilter>;  // whole mono chain
+using OutputGain = juce::dsp::Gain<float>;
+using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, Filter, Filter, CutFilter, OutputGain>;  // whole mono chain
 
 // Declaring enum for clarity of filter names   ~A
 enum ChainPositions
@@ -193,7 +195,8 @@ enum ChainPositions
     Band1,
     Band2,
     Band3,
-    HighCut
+    HighCut,
+    OutputDB
 };
 
 using Coefficients = Filter::CoefficientsPtr;
@@ -327,6 +330,7 @@ private:
     void updateBand1Filter(const ChainSettings& chainSettings);
     void updateBand2Filter(const ChainSettings& chainSettings);
     void updateBand3Filter(const ChainSettings& chainSettings);
+    void updateOutputGain(const ChainSettings& chainSettings);
 
 
     // Moved the commented out lines to global scope because they're needed for
