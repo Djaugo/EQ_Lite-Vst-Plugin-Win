@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="JRzMoG" name="EQ_Lite" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" cppLanguageStandard="17">
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" cppLanguageStandard="17"
+              pluginManufacturer="Dzialo VSTs" pluginManufacturerCode="DVST"
+              pluginVST3Category="EQ">
   <MAINGROUP id="nTpL5O" name="EQ_Lite">
     <GROUP id="{5C46C192-F098-F7AF-E417-5C2225835D50}" name="Resources">
-      <FILE id="dSEEKd" name="basictexture2.png" compile="0" resource="1"
-            file="Textures/basictexture2.png"/>
+      <FILE id="wSWpsp" name="basictexture2.png" compile="0" resource="1"
+            file="C:/Users/Adam/Desktop/vst plugin/Textures/basictexture2.png"/>
+      <FILE id="xAoQj5" name="icon.png" compile="0" resource="1" file="C:/Users/Adam/Desktop/vst plugin/icon.png"/>
     </GROUP>
     <GROUP id="{5627F64C-2FEA-3CCC-7C91-661CC4364298}" name="Source">
       <FILE id="UWyuab" name="PluginProcessor.cpp" compile="1" resource="0"
@@ -19,7 +22,7 @@
   </MAINGROUP>
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
   <EXPORTFORMATS>
-    <VS2019 targetFolder="Builds/VisualStudio2019">
+    <VS2019 targetFolder="Builds/VisualStudio2019" smallIcon="xAoQj5" bigIcon="xAoQj5">
       <CONFIGURATIONS>
         <CONFIGURATION isDebug="1" name="Debug" targetName="EQ_Lite"/>
         <CONFIGURATION isDebug="0" name="Release" targetName="EQ_Lite"/>
